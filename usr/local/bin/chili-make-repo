@@ -5,9 +5,9 @@
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
 #  Altered: dom 27 out 2024 09:19:14 -04
-#  Updated: dom 17 ago 2025 23:38:57 -04
+#  Updated: seg 02 mar 2026 18:17:19 -04
 #
-#  Copyright (c) 2024-2025, Vilmar Catafesta <vcatafesta@gmail.com>
+#  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -75,7 +75,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare VERSION="1.08.17-20250817"
+declare VERSION="2.03.02-20260302"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -671,7 +671,7 @@ read_file_sign_conf() {
 
 sh_sign_package_void() {
 	local pkg_to_sign="$1"
-   msg_run "xbps-rindex -v --privkey private.pem --sign-pkg "${pkg_to_sign}" 1>/dev/null"
+	msg_run "xbps-rindex -v --privkey private.pem --sign-pkg "${pkg_to_sign}" 1>/dev/null"
 }
 
 sign_package() {
@@ -862,7 +862,7 @@ sh_synchronize_remote_with_local() {
 	for organization in "${aOrganizations[@]}"; do
 		sh_config
 		sh_remote_pull
-      replicate '-'
+		replicate '-'
 	done
 
 	if $void; then
@@ -886,52 +886,62 @@ sh_remote_pull() {
 			local_PATH+="/${branch,,}/x86_64"
 		fi
 
-      if $verbose; then
-   		db_name="${prefix_DB}-${branch,,}"
-   		msg_raw "      distro: ${distro}"
-   		msg_raw "organization: ${organization}"
-   		msg_raw "   prefix_DB: ${prefix_DB}"
-   		msg_raw "     db_name: ${db_name}"
-   		msg_raw "      branch: ${branch}"
-   		msg_raw "  local_PATH: ${local_PATH}"
-   		msg_raw " remote_PATH: ${remote_PATH}"
-   		msg_raw " remote_USER: ${remote_USER}"
-   		msg_raw " remote_HOST: ${remote_HOST}"
-   		msg_raw " remote_PORT: ${remote_PORT}"
-      fi
+		if $verbose; then
+			db_name="${prefix_DB}-${branch,,}"
+			msg_raw "      distro: ${distro}"
+			msg_raw "organization: ${organization}"
+			msg_raw "   prefix_DB: ${prefix_DB}"
+			msg_raw "     db_name: ${db_name}"
+			msg_raw "      branch: ${branch}"
+			msg_raw "  local_PATH: ${local_PATH}"
+			msg_raw " remote_PATH: ${remote_PATH}"
+			msg_raw " remote_USER: ${remote_USER}"
+			msg_raw " remote_HOST: ${remote_HOST}"
+			msg_raw " remote_PORT: ${remote_PORT}"
+		fi
 
 		pushd "$local_PATH" >/dev/null 2>&- || exit 1
 		msg_info "${cyan}Sincronizando... Puxando branch ${orange}${branch} ${cyan}do remoto para local ${reset}"
 		msg_raw "    organization: ${organization}"
 		msg_raw "           Local: ${local_PATH}"
 		msg_raw "          Remoto: ${remote_PATH}"
+
+		options=()
+		options+=(--info=skip0)
+		options+=(--delete)
+		options+=(--cvs-exclude)
+		options+=(--recursive)
+		options+=(--links)
+		options+=(--times)
+		options+=(--update)
+
 		if $verbose; then
 			echo -n "$black"
-			#rsync --itemize-changes --info=skip0 -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
-			#rsync --itemize-changes --info=skip0 -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
-      if ! rsync --itemize-changes \
-        --info=skip0 -Crltu \
-        -e "ssh -p ${remote_PORT} \
+			options+=(--itemize-changes)
+			#rsync --info=skip0 --itemize-changes -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
+			#rsync --info=skip0 --itemize-changes -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
+			if ! rsync "${options[@]}" \
+				-e "ssh -p ${remote_PORT} \
         -i $HOME/.ssh/id_rsa \
         -o IdentitiesOnly=yes \
         -o LogLevel=ERROR" \
-        "${remote_USER}@${remote_HOST}:${remote_PATH}/" \
-        "${local_PATH}/"; then
-        die "Erro"
-      fi
+				"${remote_USER}@${remote_HOST}:${remote_PATH}/" \
+				"${local_PATH}/"; then
+				die "Erro"
+			fi
 			echo -n "$reset"
 		else
 			#rsync --info=skip0 -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
 			#rsync --info=skip0 -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
-      if ! rsync --itemize-changes --info=skip0 -Crltu \
-        -e "ssh -p ${remote_PORT} \
+			if ! rsync "${options[@]}" \
+				-e "ssh -p ${remote_PORT} \
         -i $HOME/.ssh/id_rsa \
         -o IdentitiesOnly=yes \
         -o LogLevel=ERROR" \
-        "${remote_USER}@${remote_HOST}:${remote_PATH}/" \
-        "${local_PATH}/"; then
-        die "Erro"
-      fi
+				"${remote_USER}@${remote_HOST}:${remote_PATH}/" \
+				"${local_PATH}/"; then
+				die "Erro"
+			fi
 		fi
 	done
 }
@@ -940,9 +950,9 @@ sh_create_databases() {
 	get_branchs
 	for branch in "${aBranchs[@]}"; do
 		sh_config
-      if ! $void; then
-   		local_PATH+="/${branch,,}/x86_64"
-	   fi
+		if ! $void; then
+			local_PATH+="/${branch,,}/x86_64"
+		fi
 		db_name="${prefix_DB}-${branch,,}"
 
 		pushd "$local_PATH" >/dev/null 2>&- || exit 1
@@ -1007,29 +1017,40 @@ sh_remote_push() {
 		pushd "$local_PATH" >/dev/null 2>&- || exit 1
 		msg_info "${cyan}Empurrando para o remoto: ${orange}${branch}/${organization} ${reset}"
 
-    if $verbose; then
-      echo -n "$black"
-      rsync --itemize-changes \
-            --info=skip0 \
-            --delete -Crltu \
-            -e "ssh -p ${remote_PORT} \
+		options=()
+		options+=(--info=skip0)
+		options+=(--delete)
+		options+=(--cvs-exclude)
+		options+=(--recursive)
+		options+=(--links)
+		options+=(--times)
+		options+=(--update)
+
+		if $verbose; then
+			echo -n "$black"
+			options+=(--itemize-changes)
+			if ! rsync "${options[@]}" \
+				-e "ssh -p ${remote_PORT} \
                 -i $HOME/.ssh/id_rsa \
                 -o IdentitiesOnly=yes \
                 -o LogLevel=ERROR" \
-            "${local_PATH}/" \
-            "${remote_USER}@${remote_HOST}:${remote_PATH}/"
-      echo -n "$reset"
-    else
-      rsync --info=skip0 \
-            --delete -Crltu \
-            -e "ssh -p ${remote_PORT} \
+				"${local_PATH}/" \
+				"${remote_USER}@${remote_HOST}:${remote_PATH}/"; then
+				die "Erro"
+			fi
+			echo -n "$reset"
+		else
+			if ! rsync "${options[@]}" \
+				-e "ssh -p ${remote_PORT} \
                 -i $HOME/.ssh/id_rsa \
                 -o IdentitiesOnly=yes \
                 -o LogLevel=ERROR" \
-            "${local_PATH}/" \
-            "${remote_USER}@${remote_HOST}:${remote_PATH}/"
-    fi
-    popd >/dev/null 2>&- || exit 1
+				"${local_PATH}/" \
+				"${remote_USER}@${remote_HOST}:${remote_PATH}/"; then
+				die "Erro"
+			fi
+		fi
+		popd >/dev/null 2>&- || exit 1
 
 		#replicate '-'
 	done
@@ -1249,8 +1270,8 @@ while [[ $# -gt 0 ]]; do
 		;;
 
 	-A | --all | --syncall)
-      next_arg="${2:-}"
-      next_arg="${next_arg,,}"
+		next_arg="${2:-}"
+		next_arg="${next_arg,,}"
 		if [[ "$next_arg" =~ ^(stable|testing|extra|aur|void|all)$ ]]; then
 			if [[ "$next_arg" == 'void' ]]; then
 				void=true
@@ -1273,10 +1294,10 @@ while [[ $# -gt 0 ]]; do
 		fi
 
 		if [[ "$organization" == 'chili' ]]; then
-         aOrganizations=()
-         aOrganizations+=("chili")
-         aOrganizations+=("chililinux")
-      fi
+			aOrganizations=()
+			aOrganizations+=("chili")
+			aOrganizations+=("chililinux")
+		fi
 		sh_synchronize_remote_with_local "$arg_branch"
 		exit 0
 		;;
