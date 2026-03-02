@@ -910,7 +910,7 @@ sh_remote_pull() {
 			#rsync --itemize-changes --info=skip0 -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
 			#rsync --itemize-changes --info=skip0 -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
       if ! rsync --itemize-changes \
-        --info=skip0 -Crau \
+        --info=skip0 -Crltu \
         -e "ssh -p ${remote_PORT} \
         -i $HOME/.ssh/id_rsa \
         -o IdentitiesOnly=yes \
@@ -923,7 +923,7 @@ sh_remote_pull() {
 		else
 			#rsync --info=skip0 -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
 			#rsync --info=skip0 -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
-      if ! rsync --itemize-changes --info=skip0 -Crau \
+      if ! rsync --itemize-changes --info=skip0 -Crltu \
         -e "ssh -p ${remote_PORT} \
         -i $HOME/.ssh/id_rsa \
         -o IdentitiesOnly=yes \
@@ -1011,7 +1011,7 @@ sh_remote_push() {
       echo -n "$black"
       rsync --itemize-changes \
             --info=skip0 \
-            --delete -Craz \
+            --delete -Crltu \
             -e "ssh -p ${remote_PORT} \
                 -i $HOME/.ssh/id_rsa \
                 -o IdentitiesOnly=yes \
@@ -1021,7 +1021,7 @@ sh_remote_push() {
       echo -n "$reset"
     else
       rsync --info=skip0 \
-            --delete -Craz \
+            --delete -Crltu \
             -e "ssh -p ${remote_PORT} \
                 -i $HOME/.ssh/id_rsa \
                 -o IdentitiesOnly=yes \
