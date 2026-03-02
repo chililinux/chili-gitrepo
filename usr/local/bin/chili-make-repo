@@ -907,13 +907,16 @@ sh_remote_pull() {
 		msg_raw "          Remoto: ${remote_PATH}"
 
 		options=()
+		options+=(--archive)
+		options+=(--compress)
 		options+=(--info=skip0)
-		options+=(--delete)
 		options+=(--cvs-exclude)
 		options+=(--recursive)
 		options+=(--links)
 		options+=(--times)
 		options+=(--update)
+		options+=(--ignore-existing)
+		options+=(--partial)
 
 		if $verbose; then
 			echo -n "$black"
@@ -1018,13 +1021,16 @@ sh_remote_push() {
 		msg_info "${cyan}Empurrando para o remoto: ${orange}${branch}/${organization} ${reset}"
 
 		options=()
+		options+=(--archive)
+		options+=(--compress)
 		options+=(--info=skip0)
-		options+=(--delete)
 		options+=(--cvs-exclude)
 		options+=(--recursive)
 		options+=(--links)
 		options+=(--times)
 		options+=(--update)
+		options+=(--delete)
+		options+=(--partial)
 
 		if $verbose; then
 			echo -n "$black"
