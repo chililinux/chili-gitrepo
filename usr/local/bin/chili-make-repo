@@ -921,30 +921,24 @@ sh_remote_pull() {
 		if $verbose; then
 			echo -n "$black"
 			options+=(--itemize-changes)
-			#rsync --info=skip0 --itemize-changes -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
-			#rsync --info=skip0 --itemize-changes -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
-			if ! rsync "${options[@]}" \
-				-e "ssh -p ${remote_PORT} \
+			options+=(--human-readable)
+			options+=(--progres)
+		fi
+		#rsync --info=skip0 --itemize-changes -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
+		#rsync --info=skip0 --itemize-changes -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
+		if ! rsync "${options[@]}" \
+			-e "ssh -p ${remote_PORT} \
         -i $HOME/.ssh/id_rsa \
         -o IdentitiesOnly=yes \
         -o LogLevel=ERROR" \
-				"${remote_USER}@${remote_HOST}:${remote_PATH}/" \
-				"${local_PATH}/"; then
-				die "Erro"
-			fi
+			"${remote_USER}@${remote_HOST}:${remote_PATH}/" \
+			"${local_PATH}/"; then
+			case $? in
+			23) die "Erro: arquivos não puderam ser transferidos (permissão/arquivo ausente)" ;;
+			12) die "Erro: conexão SSH falhou" ;;
+			*) die "Erro desconhecido no rsync (pull)" ;;
+			esac
 			echo -n "$reset"
-		else
-			#rsync --info=skip0 -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
-			#rsync --info=skip0 -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
-			if ! rsync "${options[@]}" \
-				-e "ssh -p ${remote_PORT} \
-        -i $HOME/.ssh/id_rsa \
-        -o IdentitiesOnly=yes \
-        -o LogLevel=ERROR" \
-				"${remote_USER}@${remote_HOST}:${remote_PATH}/" \
-				"${local_PATH}/"; then
-				die "Erro"
-			fi
 		fi
 	done
 }
@@ -1035,29 +1029,24 @@ sh_remote_push() {
 		if $verbose; then
 			echo -n "$black"
 			options+=(--itemize-changes)
-			if ! rsync "${options[@]}" \
-				-e "ssh -p ${remote_PORT} \
-                -i $HOME/.ssh/id_rsa \
-                -o IdentitiesOnly=yes \
-                -o LogLevel=ERROR" \
-				"${local_PATH}/" \
-				"${remote_USER}@${remote_HOST}:${remote_PATH}/"; then
-				die "Erro"
-			fi
-			echo -n "$reset"
-		else
-			if ! rsync "${options[@]}" \
-				-e "ssh -p ${remote_PORT} \
-                -i $HOME/.ssh/id_rsa \
-                -o IdentitiesOnly=yes \
-                -o LogLevel=ERROR" \
-				"${local_PATH}/" \
-				"${remote_USER}@${remote_HOST}:${remote_PATH}/"; then
-				die "Erro"
-			fi
+			options+=(--human-readable)
+			options+=(--progres)
 		fi
+		if ! rsync "${options[@]}" \
+			-e "ssh -p ${remote_PORT} \
+                -i $HOME/.ssh/id_rsa \
+                -o IdentitiesOnly=yes \
+                -o LogLevel=ERROR" \
+			"${local_PATH}/" \
+			"${remote_USER}@${remote_HOST}:${remote_PATH}/"; then
+			case $? in
+			23) die "Erro: arquivos não puderam ser transferidos (permissão/arquivo ausente)" ;;
+			12) die "Erro: conexão SSH falhou" ;;
+			*) die "Erro desconhecido no rsync (pull)" ;;
+			esac
+		fi
+		echo -n "$reset"
 		popd >/dev/null 2>&- || exit 1
-
 		#replicate '-'
 	done
 
