@@ -922,7 +922,7 @@ sh_remote_pull() {
 			echo -n "$black"
 			options+=(--itemize-changes)
 			options+=(--human-readable)
-			options+=(--progres)
+			options+=(--progress)
 		fi
 		#rsync --info=skip0 --itemize-changes -Craz -e "ssh -p ${remote_PORT}" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}"/ "${local_PATH}"/
 		#rsync --info=skip0 --itemize-changes -Crau -e "ssh -p ${remote_PORT} -o LogLevel=ERROR" "${remote_USER}"@"${remote_HOST}":"${remote_PATH}/" "${local_PATH}/"
@@ -1030,7 +1030,7 @@ sh_remote_push() {
 			echo -n "$black"
 			options+=(--itemize-changes)
 			options+=(--human-readable)
-			options+=(--progres)
+			options+=(--progress)
 		fi
 		if ! rsync "${options[@]}" \
 			-e "ssh -p ${remote_PORT} \
