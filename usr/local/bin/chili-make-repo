@@ -5,7 +5,7 @@
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
 #  Altered: dom 27 out 2024 09:19:14 -04
-#  Updated: seg 02 mar 2026 18:17:19 -04
+#  Updated: ter 03 mar 2026 17:26:21 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -75,7 +75,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare VERSION="2.03.02-20260302"
+declare VERSION="2.03.03-20260303"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -877,7 +877,19 @@ sh_synchronize_remote_with_local() {
 	done
 }
 
+sh_full_synchronize_local_with_remote() {
+	get_branchs
+
+	for organization in "${aOrganizations[@]}"; do
+		sh_config
+		sh_remote_pull 'true'
+		replicate '-'
+	done
+}
+
 sh_remote_pull() {
+	local deletar_local="$1"
+
 	for branch in "${aBranchs[@]}"; do
 		sh_config
 
@@ -918,6 +930,9 @@ sh_remote_pull() {
 		options+=(--ignore-existing)
 		options+=(--partial)
 
+		if $deletar_local; then
+			options+=(--delete)
+		fi
 		if $verbose; then
 			echo -n "$black"
 			options+=(--itemize-changes)
@@ -1083,6 +1098,7 @@ sh_usage() {
 				          -o|--org|--organization ${orange}<name> ${cyan} # Configura organização no Github ${reset}válidos: ${yellow}${aOrganizations[*]} all ${reset}
 				          -c|--config ${orange}[organization]     ${cyan} # configurar ambiente da organization ${reset}default: ${yellow}nova ${reset}
 				          -s|--synchronize               ${cyan} # sincronizar local com remoto (puxar/empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
+				          -l|--sync-local-with-remote    ${cyan} # sincronizar local com remoto (somente puxar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
 				          -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
 				          -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
 				          -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
@@ -1294,6 +1310,38 @@ while [[ $# -gt 0 ]]; do
 			aOrganizations+=("chililinux")
 		fi
 		sh_synchronize_remote_with_local "$arg_branch"
+		exit 0
+		;;
+
+	-l | -L | --sync-local-with-remote)
+		next_arg="${2:-}"
+		next_arg="${next_arg,,}"
+		if [[ "$next_arg" =~ ^(stable|testing|extra|aur|void|all)$ ]]; then
+			if [[ "$next_arg" == 'void' ]]; then
+				void=true
+				arg_branch="all"
+				organization='void'
+				aOrganizations=('void')
+				sh_full_synchronize_local_with_remote "$arg_branch"
+				exit 0
+			fi
+			arg_branch="$next_arg"
+			shift 2
+		else
+			die "Opção inválida para --syncall: $next_arg. Use ${yellow}stable testing extra aaur void all${reset}"
+		fi
+
+		if [[ -z "$organization" ]]; then
+			errorbeep
+			die "${cyan}Nenhuma organização definida. (Use -h para ajuda)${reset}"
+		fi
+
+		if [[ "$organization" == 'chili' ]]; then
+			aOrganizations=()
+			aOrganizations+=("chili")
+			aOrganizations+=("chililinux")
+		fi
+		sh_full_synchronize_local_with_remote "$arg_branch"
 		exit 0
 		;;
 
