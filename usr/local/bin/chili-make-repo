@@ -890,6 +890,8 @@ sh_full_synchronize_local_with_remote() {
 sh_remote_pull() {
 	local deletar_local="$1"
 
+	[[ -z $deletar_local ]] && deletar_local=false
+
 	for branch in "${aBranchs[@]}"; do
 		sh_config
 
