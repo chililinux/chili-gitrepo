@@ -984,11 +984,16 @@ sh_create_databases() {
 		rm -f -- *.md5 >/dev/null 2>&-
 
 		if $void; then
-			AllOldPackages=$(find "$PWD" -type f -iname "*.$PKG_EXT" | sort -Vr | awk -F "$FETCH_RE" 'lista[$1]++')
-			for old in ${AllOldPackages[*]}; do
+      FETCH_RE='-[0-9][^-]*_[0-9]+.*.xbps$'
+      mapfile -t AllOldPackages < <(
+        find "$PWD" -type f -iname "*.$PKG_EXT" | sort -Vr | awk -F "$FETCH_RE" 'lista[$1]++'
+      )
+
+			msg_info "${cyan}Pacotes antigos localizados: ${yellow}${#AllOldPackages[@]}${reset}"
+
+			for old in "${AllOldPackages[@]}"; do
 				msg_info "${red}=>Removendo pacote antigo: [$((++count))] => $(basename "${old}") ${reset}"
 				msg_info "${red}=>Removendo pacote antigo: [$((count))] => $(basename "${old}.sig2") ${reset}"
-				msg_info "${red}=>Removendo pacote antigo: [$((count))] => $(basename "${old}.md5") ${reset}"
 				rm -f "${old}" "${old}".sig2 "${old}".md5 >/dev/null 2>&-
 			done
 
