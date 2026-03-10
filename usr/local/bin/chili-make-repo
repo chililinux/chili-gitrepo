@@ -731,8 +731,8 @@ search_for_sign_package_void() {
 		((total_processed++)) # Incrementa o contador de pacotes processados
 		if [[ ! -e "$pkg.sig2" ]]; then
 			((total_unsigned++)) # Incrementa o contador de pacotes sem assinatura
-#			msg_info "Assinando individualmente pacote void: $pkg"
-#			sh_sign_package_void "$pkg"
+			msg_info "Assinando individualmente pacote void: $pkg"
+			sh_sign_package_void "$pkg"
 			((total_signed++)) # Incrementa o contador de pacotes assinados
 		else
 			((total_already_signed++)) # Incrementa o contador de pacotes já assinados
@@ -887,6 +887,17 @@ sh_full_synchronize_local_with_remote() {
 	done
 }
 
+sh_full_synchronize_remote_with_local() {
+	get_branchs
+
+	for organization in "${aOrganizations[@]}"; do
+		sh_config
+		sh_create_databases
+		sh_remote_push 'true'
+		replicate '-'
+	done
+}
+
 sh_remote_pull() {
 	local deletar_local="$1"
 
@@ -973,26 +984,32 @@ sh_create_databases() {
 		rm -f -- *.md5 >/dev/null 2>&-
 
 		if $void; then
-			AllOldPackages=$(find "$PWD" -type f -iname "*.$PKG_EXT" | sort -Vr | awk -F "$FETCH_RE" 'lista[$1]++')
-			for old in ${AllOldPackages[*]}; do
+      FETCH_RE='-[0-9][^-]*_[0-9]+.*.xbps$'
+      mapfile -t AllOldPackages < <(
+        find "$PWD" -type f -iname "*.$PKG_EXT" | sort -Vr | awk -F "$FETCH_RE" 'lista[$1]++'
+      )
+
+			msg_info "${cyan}Pacotes antigos localizados: ${yellow}${#AllOldPackages[@]}${reset}"
+
+			for old in "${AllOldPackages[@]}"; do
 				msg_info "${red}=>Removendo pacote antigo: [$((++count))] => $(basename "${old}") ${reset}"
 				msg_info "${red}=>Removendo pacote antigo: [$((count))] => $(basename "${old}.sig2") ${reset}"
-				msg_info "${red}=>Removendo pacote antigo: [$((count))] => $(basename "${old}.md5") ${reset}"
 				rm -f "${old}" "${old}".sig2 "${old}".md5 >/dev/null 2>&-
 			done
 
 			#cria x86_repodata
 			msg_info "${cyan}Recriando database ${orange}'x86_repodata' ${cyan}localmente ${reset}"
-      rm -f "$local_PATH/"/*-repodata "$local_PATH/"/*-repodata.sig
+      rm -f "$local_PATH/"/*-repodata "$local_PATH/"/*-repodata.sig "$local_PATH/"/*.plist
 			msg_run 'xbps-rindex -v --add --force $local_PATH/*.xbps 1>/dev/null'
 
 			# Once the key is generated, the public part of the private key has to be added to the repository metadata. This step is required only once.
 			msg_info "${cyan}Assinando database ${orange}'x86_repodata' ${cyan}localmente ${reset}"
 			msg_run 'xbps-rindex -v --privkey private.pem --sign --signedby "$PACKAGER" "$local_PATH" 1>/dev/null'
 
-			msg_info "${cyan}Assinando todos pacotes void ${cyan}localmente ${reset}"
-      rm -f "$local_PATH/"/*.sig2
-			msg_run 'xbps-rindex -v --sign-pkg --privkey private.pem --signedby "$PACKAGER" "$local_PATH/"*.xbps 1>/dev/null'
+			#msg_info "${cyan}Assinando todos pacotes void ${cyan}localmente ${reset}"
+      #rm -f "$local_PATH/"/*.sig2
+			#msg_run 'xbps-rindex -v --sign-pkg --privkey private.pem --signedby "$PACKAGER" "$local_PATH/"*.xbps 1>/dev/null'
+      search_for_sign_package_void
 
 			popd >/dev/null 2>&- || exit 1
 			replicate '-'
@@ -1106,6 +1123,7 @@ sh_usage() {
 				          -c|--config ${orange}[organization]     ${cyan} # configurar ambiente da organization ${reset}default: ${yellow}nova ${reset}
 				          -s|--synchronize               ${cyan} # sincronizar local com remoto (puxar/empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
 				          -l|--sync-local-with-remote    ${cyan} # sincronizar local com remoto (somente puxar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
+				          -r|--sync-remote-with-local    ${cyan} # sincronizar remote com local (somente empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
 				          -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
 				          -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
 				          -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
@@ -1349,6 +1367,38 @@ while [[ $# -gt 0 ]]; do
 			aOrganizations+=("chililinux")
 		fi
 		sh_full_synchronize_local_with_remote "$arg_branch"
+		exit 0
+		;;
+
+	-r | -R | --sync-remote-with-local)
+		next_arg="${2:-}"
+		next_arg="${next_arg,,}"
+		if [[ "$next_arg" =~ ^(stable|testing|extra|aur|void|all)$ ]]; then
+			if [[ "$next_arg" == 'void' ]]; then
+				void=true
+				arg_branch="all"
+				organization='void'
+				aOrganizations=('void')
+				sh_full_synchronize_remote_with_local "$arg_branch"
+				exit 0
+			fi
+			arg_branch="$next_arg"
+			shift 2
+		else
+			die "Opção inválida para --syncall: $next_arg. Use ${yellow}stable testing extra aaur void all${reset}"
+		fi
+
+		if [[ -z "$organization" ]]; then
+			errorbeep
+			die "${cyan}Nenhuma organização definida. (Use -h para ajuda)${reset}"
+		fi
+
+		if [[ "$organization" == 'chili' ]]; then
+			aOrganizations=()
+			aOrganizations+=("chili")
+			aOrganizations+=("chililinux")
+		fi
+		sh_full_synchronize_remote_with_local "$arg_branch"
 		exit 0
 		;;
 
