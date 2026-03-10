@@ -5,7 +5,7 @@
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
 #  Altered: dom 27 out 2024 09:19:14 -04
-#  Updated: ter 03 mar 2026 17:26:21 -04
+#  Updated: seg 09 mar 2026 21:54:04 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -75,7 +75,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare VERSION="2.03.03-20260303"
+declare VERSION="2.03.09-20260309"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -731,8 +731,8 @@ search_for_sign_package_void() {
 		((total_processed++)) # Incrementa o contador de pacotes processados
 		if [[ ! -e "$pkg.sig2" ]]; then
 			((total_unsigned++)) # Incrementa o contador de pacotes sem assinatura
-			msg_info "Assinando pacote: $pkg"
-			sh_sign_package_void "$pkg"
+#			msg_info "Assinando individualmente pacote void: $pkg"
+#			sh_sign_package_void "$pkg"
 			((total_signed++)) # Incrementa o contador de pacotes assinados
 		else
 			((total_already_signed++)) # Incrementa o contador de pacotes já assinados
@@ -983,11 +983,16 @@ sh_create_databases() {
 
 			#cria x86_repodata
 			msg_info "${cyan}Recriando database ${orange}'x86_repodata' ${cyan}localmente ${reset}"
+      rm -f "$local_PATH/"/*-repodata "$local_PATH/"/*-repodata.sig
 			msg_run 'xbps-rindex -v --add --force $local_PATH/*.xbps 1>/dev/null'
 
 			# Once the key is generated, the public part of the private key has to be added to the repository metadata. This step is required only once.
 			msg_info "${cyan}Assinando database ${orange}'x86_repodata' ${cyan}localmente ${reset}"
 			msg_run 'xbps-rindex -v --privkey private.pem --sign --signedby "$PACKAGER" "$local_PATH" 1>/dev/null'
+
+			msg_info "${cyan}Assinando todos pacotes void ${cyan}localmente ${reset}"
+      rm -f "$local_PATH/"/*.sig2
+			msg_run 'xbps-rindex -v --sign-pkg --privkey private.pem --signedby "$PACKAGER" "$local_PATH/"*.xbps 1>/dev/null'
 
 			popd >/dev/null 2>&- || exit 1
 			replicate '-'
