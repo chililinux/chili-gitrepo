@@ -1,10 +1,11 @@
+#!/usr/bin/env bash
 # -*- coding: utf-8 -*-
 # shellcheck shell=bash disable=SC1091,SC2039,SC2166,SC2034
 #
 #  chili-repo-management
 #  Created: 2024/12/20 - 01:48
 #  Altered: 2024/12/20 - 01:48
-#  Updated: sáb 28 fev 2026 21:42:24 -04
+#  Updated: qua 29 abr 2026 14:21:37 -04
 #
 #  Copyright (c) 2019-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  Copyright (c) 2019-2026, ChiliLinux Development Team <https://chililinux.com> <https://github.com/chililinux>
@@ -44,8 +45,8 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="0.02.28-20260228"
-declare APPDESC="Script de Gerenciamento de Repositório local/remoto (versão $version)"
+declare _VERSION_="0.04.29-20260429"
+declare APPDESC="Script de Gerenciamento de Repositório local/remoto (v$_VERSION_)"
 declare distro="$(uname -n)"
 
 # Cores e estilos
@@ -58,9 +59,6 @@ cyan='\033[0;36m'
 nc='\033[0m' # No Color
 bold='\033[1m'
 
-# Versão do script
-version="1.3.0"
-
 # Variáveis globais
 repoDir="/home/big/Docker/RepoCommunity/html"
 repositories=("testing" "stable" "extra")
@@ -69,27 +67,14 @@ set_varcolors() {
 	# does the terminal support true-color?
 	if [[ -n "$(command -v "tput")" ]]; then
 		#tput setaf 127 | cat -v  #capturar saida
-		: "${RED=$(tput bold)$(tput setaf 196)}"
-		: "${GREEN=$(tput bold)$(tput setaf 2)}"
-		: "${YELLOW=$(tput bold)$(tput setaf 3)}"
-		: "${BLUE=$(tput setaf 4)}"
-		: "${PURPLE=$(tput setaf 125)}"
-		: "${CYAN=$(tput setaf 6)}"
-		: "${NC=$(tput sgr0)}"
-		: "${RESET=$(tput sgr0)}"
-		: "${BOLD=$(tput bold)}"
 		: "${black=$(tput bold)$(tput setaf 0)}"
 		: "${reverse=$(tput rev)}"
 		: "${branca=${black}$(tput setab 7)}"
-
 		: "${reset=$(tput sgr0)}"
 		: "${rst=$(tput sgr0)}"
 		: "${bold=$(tput bold)}"
 		: "${underline=$(tput smul)}"
 		: "${nounderline=$(tput rmul)}"
-		: "${reverse=$(tput rev)}"
-
-		: "${black=$(tput bold)$(tput setaf 0)}"
 		: "${red=$(tput bold)$(tput setaf 196)}"
 		: "${green=$(tput bold)$(tput setaf 2)}"
 		: "${yellow=$(tput bold)$(tput setaf 3)}"
@@ -173,7 +158,7 @@ printMessage() {
 	local color=$1
 	shift
 	local message=$*
-	echo -e "${color}${message}${nc}"
+	echo -e "${color}${message}${rst}"
 	#	echo ""
 }
 
@@ -202,24 +187,23 @@ createMenu() {
 	while true; do
 		#tput clear # Limpa a tela
 		clear
-		printMessage "$orange" "$APP"
-		printMessage "$green" "$APPDESC"
+		printMessage "$orange" "$APP" "$green" "$APPDESC"
 		echo
-		printMessage "${white}" "Repositorio:"
-		printMessage "${yellow}$gh_repo_view${reset}"
+		printMessage "${white}" "Repositorio : \n${yellow}${gh_repo_view}${reset}"
+		printMessage "${white}" "Repo default: ${yellow}${gh_repo_default}${reset}"
+		echo
 
-		echo
-		echo -e "${blue}${bold}$title${nc}\n"
+		echo -e "${blue}${bold}$title${rst}"
 		for i in "${!options[@]}"; do
 			if [ $i -eq $selected ]; then
 				if [ "${options[$i]}" == "$exitOption" ]; then
-					echo -e "${red}${bold}> ${options[$i]}${nc}"
+					echo -e "${red}${bold}> ${options[$i]}${rst}"
 				else
-					echo -e "${green}${bold}> ${options[$i]}${nc}"
+					echo -e "${green}${bold}> ${options[$i]^^}${rst}"
 				fi
 			else
 				if [ "${options[$i]}" == "$exitOption" ]; then
-					echo -e "${red}  ${options[$i]}${nc}"
+					echo -e "${red}  ${options[$i]}${rst}"
 				else
 					echo "  ${options[$i]}"
 				fi
@@ -241,7 +225,7 @@ createMenu() {
 	done
 
 	tput cnorm # Mostra o cursor novamente
-	echo -e "\nVocê selecionou: ${green}${bold}${options[$selected]}${nc}"
+	echo -e "\nVocê selecionou: ${green}${bold}${options[$selected]}${rst}"
 	if [[ $typeReturn == 'number' ]]; then
 		MENU_RESULT=$((++selected))
 	else
@@ -326,7 +310,7 @@ movePackage() {
 	fi
 
 	# Confirmar a movimentação
-	read -p "$(echo -e ${yellow}"Confirma mover $selectedPackage de $sourceRepo para $targetRepo? (s/n): "${nc})" confirm
+	read -p "$(echo -e ${yellow}"Confirma mover $selectedPackage de $sourceRepo para $targetRepo? (s/n): "${rst})" confirm
 	if [[ $confirm =~ ^[Ss]$ ]]; then
 		# Verificar versão mais antiga no destino
 		if ls "$repoDir/$targetRepo/x86_64/$selectedPackage"*.pkg.tar.zst 1>/dev/null 2>&1; then
@@ -466,24 +450,24 @@ comparePackages() {
 	for pkgname in "${!packageMap[@]}"; do
 		local versions=(${packageMap[$pkgname]})
 		if [ ${#versions[@]} -gt 1 ]; then
-			echo -e "\n${yellow}Pacote ${blue}${bold}${pkgname}${nc}${yellow} encontrado em múltiplos repositórios:${nc}"
+			echo -e "\n${yellow}Pacote ${blue}${bold}${pkgname}${rst}${yellow} encontrado em múltiplos repositórios:${rst}"
 			local repos_with_package=()
 			for version in "${versions[@]}"; do
 				local repo=${version%:*}
 				local ver=${version#*:}
-				echo -e "${cyan}${bold}$repo${nc}: ${green}$ver${nc}"
+				echo -e "${cyan}${bold}$repo${rst}: ${green}$ver${rst}"
 				repos_with_package+=("$repo")
 			done
 
-			echo -e "\n${white}${bold}Ações disponíveis:${nc}"
-			echo -e "${yellow}  k${nc} - ${white}${bold}Keep (manter)${nc}: Não faz alterações, mantém o pacote em todos os repositórios."
-			echo -e "${yellow}  m${nc} - ${white}${bold}Move (mover)${nc}: Move o pacote de um repositório para outro."
-			echo -e "${yellow}  r${nc} - ${white}${bold}Remove (remover)${nc}: Remove o pacote de um repositório específico."
+			echo -e "\n${white}${bold}Ações disponíveis:${rst}"
+			echo -e "${yellow}  k${rst} - ${white}${bold}Keep (manter)${rst}: Não faz alterações, mantém o pacote em todos os repositórios."
+			echo -e "${yellow}  m${rst} - ${white}${bold}Move (mover)${rst}: Move o pacote de um repositório para outro."
+			echo -e "${yellow}  r${rst} - ${white}${bold}Remove (remover)${rst}: Remove o pacote de um repositório específico."
 			echo ""
 
 			local action=""
 			while [[ ! "$action" =~ ^[kmr]$ ]]; do
-				read -p "$(echo -e ${yellow}"Escolha uma ação (k/m/r): "${nc})" action
+				read -p "$(echo -e ${yellow}"Escolha uma ação (k/m/r): "${rst})" action
 			done
 
 			case $action in
@@ -491,16 +475,16 @@ comparePackages() {
 				printMessage "$green" "Mantendo todas as versões do pacote $pkgname."
 				;;
 			m)
-				echo -e "${white}${bold}Escolha o repositório de origem:${nc}"
+				echo -e "${white}${bold}Escolha o repositório de origem:${rst}"
 				createMenu "Selecione o repositório de origem:" "false" 'string' "${repos_with_package[@]}"
 				local sourceRepo=$MENU_RESULT
 				if [ "$sourceRepo" != "Voltar" ]; then
 					local otherRepos=($(echo "${repositories[@]}" | tr ' ' '\n' | grep -v "^$sourceRepo$"))
-					echo -e "${white}${bold}Escolha o repositório de destino:${nc}"
+					echo -e "${white}${bold}Escolha o repositório de destino:${rst}"
 					createMenu "Selecione o repositório de destino:" "false" 'string' "${otherRepos[@]}"
 					local targetRepo=$MENU_RESULT
 					if [ "$targetRepo" != "Sair" ]; then
-						read -p "$(echo -e ${yellow}"Confirma mover $pkgname de $sourceRepo para $targetRepo? (s/n): "${nc})" confirm
+						read -p "$(echo -e ${yellow}"Confirma mover $pkgname de $sourceRepo para $targetRepo? (s/n): "${rst})" confirm
 						if [[ $confirm =~ ^[Ss]$ ]]; then
 							printMessage "$yellow" "Movendo $pkgname de $sourceRepo para $targetRepo"
 							mv "$repoDir/$sourceRepo/x86_64/$pkgname"* "$repoDir/$targetRepo/x86_64/"
@@ -512,11 +496,11 @@ comparePackages() {
 				fi
 				;;
 			r)
-				echo -e "${white}${bold}Escolha o repositório de onde remover o pacote $pkgname:${nc}"
+				echo -e "${white}${bold}Escolha o repositório de onde remover o pacote $pkgname:${rst}"
 				createMenu "Selecione o repositório:" "false" 'string' "${repos_with_package[@]}"
 				local removeRepo=$MENU_RESULT
 				if [ "$removeRepo" != "Voltar" ]; then
-					read -p "$(echo -e ${yellow}"Confirma remover ${blue}${bold}${pkgname}${nc} ${yellow}de $removeRepo? (s/n): "${nc})" confirm
+					read -p "$(echo -e ${yellow}"Confirma remover ${blue}${bold}${pkgname}${rst} ${yellow}de $removeRepo? (s/n): "${rst})" confirm
 					if [[ $confirm =~ ^[Ss]$ ]]; then
 						printMessage "$yellow" "Removendo $pkgname de $removeRepo"
 						rm -f "$repoDir/$removeRepo/x86_64/$pkgname"*
@@ -569,31 +553,31 @@ checkExclusivePackages() {
 	# Mostrar resultados para cada repositório
 	for repo in "${repositories[@]}"; do
 		local exclusive=(${exclusivePackages[$repo]})
-		echo -e "\n${yellow}Pacotes exclusivos do repositório ${blue}${bold}$repo${nc}${yellow}:${nc}"
+		echo -e "\n${yellow}Pacotes exclusivos do repositório ${blue}${bold}$repo${rst}${yellow}:${rst}"
 
 		if [ -z "${exclusivePackages[$repo]}" ]; then
-			echo -e "${purple}Nenhum pacote exclusivo encontrado.${nc}"
+			echo -e "${purple}Nenhum pacote exclusivo encontrado.${rst}"
 		else
 			local count=0
 			for pkg in ${exclusivePackages[$repo]}; do
 				local version=$(pacman -Q --file "$repoDir/$repo/x86_64/$pkg"*.pkg.tar.zst 2>/dev/null | awk '{print $2}')
-				echo -e "${green}${bold}$pkg${nc} - ${cyan}versão: $version${nc}"
+				echo -e "${green}${bold}$pkg${rst} - ${cyan}versão: $version${rst}"
 				((count++))
 			done
-			echo -e "\n${yellow}Total de pacotes exclusivos em $repo: ${green}$count${nc}"
+			echo -e "\n${yellow}Total de pacotes exclusivos em $repo: ${green}$count${rst}"
 		fi
 	done
 
-	echo -e "\n${yellow}Deseja realizar alguma ação com os pacotes exclusivos?${nc}"
-	echo -e "${white}${bold}Ações disponíveis:${nc}"
-	echo -e "${yellow}  m${nc} - ${white}${bold}Mover pacote${nc}: Move um pacote exclusivo para outro repositório"
-	echo -e "${yellow}  r${nc} - ${white}${bold}Remover pacote${nc}: Remove um pacote exclusivo"
-	echo -e "${yellow}  n${nc} - ${white}${bold}Nenhuma ação${nc}: Volta ao menu principal"
+	echo -e "\n${yellow}Deseja realizar alguma ação com os pacotes exclusivos?${rst}"
+	echo -e "${white}${bold}Ações disponíveis:${rst}"
+	echo -e "${yellow}  m${rst} - ${white}${bold}Mover pacote${rst}: Move um pacote exclusivo para outro repositório"
+	echo -e "${yellow}  r${rst} - ${white}${bold}Remover pacote${rst}: Remove um pacote exclusivo"
+	echo -e "${yellow}  n${rst} - ${white}${bold}Nenhuma ação${rst}: Volta ao menu principal"
 	echo ""
 
 	local action=""
 	while [[ ! "$action" =~ ^[mrn]$ ]]; do
-		read -p "$(echo -e ${yellow}"Escolha uma ação (m/r/n): "${nc})" action
+		read -p "$(echo -e ${yellow}"Escolha uma ação (m/r/n): "${rst})" action
 	done
 
 	case $action in
@@ -623,7 +607,7 @@ checkExclusivePackages() {
 			local targetRepo=$MENU_RESULT
 
 			if [ "$targetRepo" != "Sair" ]; then
-				read -p "$(echo -e ${yellow}"Confirma mover $pkgname de $sourceRepo para $targetRepo? (s/n): "${nc})" confirm
+				read -p "$(echo -e ${yellow}"Confirma mover $pkgname de $sourceRepo para $targetRepo? (s/n): "${rst})" confirm
 				if [[ $confirm =~ ^[Ss]$ ]]; then
 					# Verificar se existe versão antiga no repositório de destino
 					if ls "$repoDir/$targetRepo/x86_64/$pkgname"*.pkg.tar.zst 1>/dev/null 2>&1; then
@@ -667,7 +651,7 @@ checkExclusivePackages() {
 			local repo=$(echo "$selected" | cut -d'/' -f1)
 			local pkgname=$(echo "$selected" | cut -d'/' -f2)
 
-			read -p "$(echo -e ${yellow}"Confirma remover $pkgname de $repo? (s/n): "${nc})" confirm
+			read -p "$(echo -e ${yellow}"Confirma remover $pkgname de $repo? (s/n): "${rst})" confirm
 			if [[ $confirm =~ ^[Ss]$ ]]; then
 				rm -f "$repoDir/$repo/x86_64/$pkgname"*
 				syncDatabase "$repo"
@@ -681,6 +665,20 @@ checkExclusivePackages() {
 	esac
 }
 
+sh_get_repo_default() {
+  # tenta pegar o repo default sem fazer barulho
+  local repo
+  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
+  gh_repo_default="$repo"
+  # se já existe, sai fora
+  [ -n "$repo" ] && return 0
+
+  # senão, define automaticamente pelo origin atual
+  repo=$(git config --get remote.origin.url | sed -E 's#.*github.com[:/](.*)\.git#\1#')
+  gh_repo_default="$repo"
+  [ -n "$repo" ] && gh repo set-default "$repo" >/dev/null 2>&1
+}
+
 sh_tags() {
 	while true; do
 		createMenu "MENU TAGS - Escolha uma ação:" "false" 'number' \
@@ -690,16 +688,14 @@ sh_tags() {
 
 		case "$ACTION" in
 		1)
-			gh repo set-default
+      sh_get_repo_default
 			git ls-remote --tags origin
 			inkey
 			;;
 		2)
-			gh repo set-default
-			# Apagar todas as tags remotas
-			git tag -l | xargs -r -n1 -I{} git push origin :refs/tags/{}
-			# Apagar todas as tags locais
-			git tag -l | xargs -r -n1 git tag -d
+  		sh_get_repo_default
+			git tag -l | sed 's/^/:refs\/tags\//' | xargs git push origin
+			git tag -l | xargs -r git tag -d
 			inkey
 			;;
 		3)
@@ -723,24 +719,25 @@ sh_releases() {
 
 		case "$ACTION" in
 		1)
-			gh repo set-default
+  		sh_get_repo_default
 			gh release list
 			inkey
 			;;
 		2)
-			gh repo set-default
+  		sh_get_repo_default
+      while :; do
+        tags=$(gh release list --limit 1000 --json tagName --jq '.[].tagName')
+        [ -z "$tags" ] && break
 
-			while :; do
-				tags=$(gh release list --limit 1000 --json tagName --jq '.[].tagName')
-				[ -z "$tags" ] && break
+        # deletar releases em paralelo (sem conflito de flags)
+        echo "$tags" | xargs -P6 -n1 gh release delete -y
 
-				echo "$tags" | while read -r tag; do
-					echo "Removendo $tag"
-					gh release delete "$tag" -y
-					git push origin ":refs/tags/$tag"
-					git tag -d "$tag" 2>/dev/null
-				done
-			done
+        # deletar TODAS as tags remotas em lote (muito mais rápido)
+        echo "$tags" | sed 's/^/:refs\/tags\//' | xargs -n50 git push origin
+
+        # deletar local (rápido mesmo sequencial)
+        echo "$tags" | xargs -r -n1 git tag -d 2>/dev/null || true
+      done
 			inkey
 			;;
 		3)
@@ -768,32 +765,31 @@ sh_workflows() {
 
 		case "$ACTION" in
 		1)
-			gh repo set-default
+  		sh_get_repo_default
 			gh run list
 			inkey
 			;;
 		2)
-			gh repo set-default
+  		sh_get_repo_default
 			gh run list --status failure
 			inkey
 			;;
 		3)
-			gh repo set-default
+  		sh_get_repo_default
 			gh run list --status success
 			inkey
 			;;
 		4)
-			gh repo set-default
-			for run_id in $(gh run list \
+  		sh_get_repo_default
+			gh run list \
 				--status failure \
 				--json databaseId \
-				--jq '.[].databaseId'); do
-				gh run delete $run_id
-			done
+				--jq '.[].databaseId' |
+				xargs -n1 -P8 -I{} gh run delete {}
 			inkey
 			;;
 		5)
-			gh repo set-default
+  		sh_get_repo_default
 			for run_id in $(gh run list \
 				--status success \
 				--json databaseId \
@@ -803,8 +799,7 @@ sh_workflows() {
 			inkey
 			;;
 		6)
-			gh repo set-default
-
+  		sh_get_repo_default
 			while :; do
 				runs=$(gh run list --limit 1000 --json databaseId --jq '.[].databaseId')
 				[ -z "$runs" ] && break
@@ -825,40 +820,41 @@ sh_workflows() {
 }
 
 sh_commits_clean() {
-  read -p "Tem certeza que deseja limpar todos os commits? (s/n): " confirm
-  [[ ! $confirm =~ ^[Ss]$ ]] && return 1
+	read -p "Tem certeza que deseja limpar todos os commits? (s/n): " confirm
+	[[ ! $confirm =~ ^[Ss]$ ]] && return 1
 
-  mainbranch="$(git symbolic-ref --short HEAD 2>/dev/null)" || {
-    echo "Erro: HEAD destacado."
-    return 1
-  }
+	mainbranch="$(git symbolic-ref --short HEAD 2>/dev/null)" || {
+		echo "Erro: HEAD destacado."
+		return 1
+	}
 
-  name="$(gh api user --jq '.name')"
-  email="$(gh api user/emails --jq '.[] | select(.primary==true) | .email')"
+	name="$(gh api user --jq '.name')"
+	email="$(gh api user/emails --jq '.[] | select(.primary==true) | .email')"
 
-  git branch -D backup_branch 2>/dev/null
-  git branch backup_branch || return 1
+	git branch -D backup_branch 2>/dev/null
+	git branch backup_branch || return 1
 
-  git checkout --orphan new_branch || return 1
-  git add -A
-  git commit -m "Restart commit - $(date) - $name <$email>"
+	git checkout --orphan new_branch || return 1
+	git add -A
+	git commit -m "Restart commit - $(date) - $name <$email>"
 
-  git branch -D "$mainbranch"
-  git branch -m "$mainbranch"
+	git branch -D "$mainbranch"
+	git branch -m "$mainbranch"
 
-  git push -f -u origin "$mainbranch"
+	git push -f -u origin "$mainbranch"
 
-  git branch -D backup_branch
+	git branch -D backup_branch
 
-  # limpa histórico local definitivamente
-  git reflog expire --expire=now --all
-  git gc --prune=now --aggressive
-  echo "Repositório reiniciado com sucesso."
-  inkey
+	# limpa histórico local definitivamente
+	git reflog expire --expire=now --all
+	git gc --prune=now --aggressive
+	echo "Repositório reiniciado com sucesso."
+	inkey
 }
 
-
 set_varcolors
+gh repo set-default
+sh_get_repo_default
 
 # Menu principal
 while true; do
@@ -873,20 +869,21 @@ while true; do
 		"Menu Releases" \
 		"Menu Tags" \
 		"Menu Workflows" \
-		"Resetar commits (clean)"
+		"Resetar commits (clean)" \
+		"Repo Default - ($gh_repo_default)"
 	ACTION=$MENU_RESULT
 
 	case "$ACTION" in
 	"Criar pacote")
-    package=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-    gh api repos/voidlinuxbr/voidbr-build-package/dispatches \
-      -X POST \
-      -i \
-      --input <(jq -n \
-        --arg repo "$package" \
-        --arg event "create-package $package" \
-        '{event_type:$event, client_payload:{repository:$repo}}')
-    inkey
+		package=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+		gh api repos/voidlinuxbr/voidbr-pkgmake/dispatches \
+			-X POST \
+			-i \
+			--input <(jq -n \
+				--arg repo "$package" \
+				--arg event "create-package $package" \
+				'{event_type:$event, client_payload:{repository:$repo}}')
+		inkey
 		;;
 	"Menu Workflows")
 		sh_workflows
@@ -930,6 +927,10 @@ while true; do
 	"Resetar commits (clean)")
 		sh_commits_clean
 		;;
+	"Repo Default - ($gh_repo_default)")
+    gh repo set-default
+    gh_repo_default="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)"
+    ;;
 	*)
 		printMessage "$red" "Opção inválida selecionada."
 		;;
