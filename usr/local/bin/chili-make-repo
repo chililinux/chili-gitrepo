@@ -1111,38 +1111,40 @@ sh_version() {
 }
 
 sh_usage() {
-	cat <<-EOF
-		    ${reset}${APP} v${VERSION} - ${APPDESC}${reset}
-		    ${BOLD}${orange}Copyright (c) 2019-2025, ${reset}ChiliLinux Development Team <https://chililinux.com> <https://github.com/chililinux>${reset}
-		    ${BOLD}${orange}Copyright (c) 2019-2025, ${reset}Vilmar Catafesta <vcatafesta@gmail.com>${black}
+  cat <<-EOF
+${reset}${APP} v${VERSION} - ${APPDESC}${reset}
+${BOLD}${orange}Copyright (c) 2019-2025, ${reset}ChiliLinux Development Team <https://chililinux.com> <https://github.com/chililinux>${reset}
+${BOLD}${orange}Copyright (c) 2019-2025, ${reset}Vilmar Catafesta <vcatafesta@gmail.com>${black}
 
-		    ${red}Uso: ${reset}$APP ${cyan}[opções]${reset}
+${red}Uso: ${reset}$APP ${cyan}[opções]${reset}
 
-				        ${cyan}Opções:${reset}
-				          -o|--org|--organization ${orange}<name> ${cyan} # Configura organização no Github ${reset}válidos: ${yellow}${aOrganizations[*]} all ${reset}
-				          -c|--config ${orange}[organization]     ${cyan} # configurar ambiente da organization ${reset}default: ${yellow}nova ${reset}
-				          -s|--synchronize               ${cyan} # sincronizar local com remoto (puxar/empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
-				          -l|--sync-local-with-remote    ${cyan} # sincronizar local com remoto (somente puxar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
-				          -r|--sync-remote-with-local    ${cyan} # sincronizar remote com local (somente empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
-				          -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}válidos: ${yellow}stable,aur,extra,testing,all ${reset}
-				          -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
-				          -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
-				          -v|--verbose                   ${cyan} # ativa modo verboso ${reset}
-				          -V|--version                   ${cyan} # Imprime a versão do aplicativo ${reset}
-				          -h|--help                      ${cyan} # imprime este Help ${reset}
+${cyan}Opções:${reset}
+  -o|--org|--organization ${orange}<name> ${cyan} # Configura organização no Github ${reset}
+  -c|--config ${orange}[organization]     ${cyan} # configurar ambiente da organization ${reset}
+  -s|--synchronize               ${cyan} # sincronizar local com remoto (puxar/empurrar) ${reset}
+  -l|-L|--sync-local-with-remote ${cyan} # sincronizar local com remoto (somente puxar) ${reset}
+  -r|-R|--sync-remote-with-local ${cyan} # sincronizar remote com local (somente empurrar) ${reset}
+  -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}
+  -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
+  -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
+  -v|--verbose                   ${cyan} # ativa modo verboso ${reset}
+  -V|--version                   ${cyan} # Imprime a versão do aplicativo ${reset}
+  -h|--help                      ${cyan} # imprime este Help ${reset}
 
-				    ${red}ex: ${cyan}${APP} -o chili -s testing         ${rst}
-				        ${yellow}${cyan}${APP} -o chili -o chililinux -s all      ${rst}
-				        ${black}${APP} -o chili -o chililinux -s stable ${rst}
-				        ${black}${APP} -o chili -s aur                  ${rst}
-				        ${black}${APP} -o chili -s all                  ${rst}
-				        ${orange}${APP} -o all -s all                   ${rst}
-				        ${orange}${APP} -o all -s stable                ${rst}
-				        ${yellow}${APP} -o chili --sign testing         ${rst}
-				        ${yellow}${APP} -A all                          ${rst}
-				        ${cyan}${APP} -A stable                       ${rst}
-				        ${cyan}${APP} -A aur                          ${rst}
-				        ${white}${APP} -o void -A all                 ${rst}
+${red}ex: ${cyan}${APP} -o chili -s testing         ${rst}
+  ${yellow}${cyan}${APP} -o chili -o chililinux -s all      ${rst}
+  ${black}${APP} -o chili -o chililinux -s stable ${rst}
+  ${black}${APP} -o chili -s aur                  ${rst}
+  ${black}${APP} -o chili -s all                  ${rst}
+  ${orange}${APP} -o all -s all                   ${rst}
+  ${orange}${APP} -o all -s stable                ${rst}
+  ${yellow}${APP} -o chili --sign testing         ${rst}
+  ${yellow}${APP} -A all                          ${rst}
+  ${cyan}${APP} -A stable                       ${rst}
+  ${cyan}${APP} -A aur                          ${rst}
+  ${white}${APP} -o void -A all                 ${rst}
+  ${white}${APP} -v -L void                     ${rst}
+  ${white}${APP} -v -R void                     ${rst}
 	EOF
 	exit 0
 }
