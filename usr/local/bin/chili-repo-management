@@ -4,8 +4,7 @@
 #
 #  chili-repo-management
 #  Created: 2024/12/20 - 01:48
-#  Altered: 2024/12/20 - 01:48
-#  Updated: qua 29 abr 2026 14:21:37 -04
+#  Updated: sáb 13 jun 2026 18:38:56 -04
 #
 #  Copyright (c) 2019-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  Copyright (c) 2019-2026, ChiliLinux Development Team <https://chililinux.com> <https://github.com/chililinux>
@@ -45,7 +44,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="0.04.29-20260429"
+declare _VERSION_="0.06.13-20260613"
 declare APPDESC="Script de Gerenciamento de Repositório local/remoto (v$_VERSION_)"
 declare distro="$(uname -n)"
 
@@ -62,6 +61,13 @@ bold='\033[1m'
 # Variáveis globais
 repoDir="/home/big/Docker/RepoCommunity/html"
 repositories=("testing" "stable" "extra")
+
+cleanup() {
+  tput cnorm
+  tput rmcup 2>/dev/null
+  stty sane
+}
+trap cleanup EXIT INT TERM
 
 set_varcolors() {
 	# does the terminal support true-color?
@@ -922,6 +928,8 @@ while true; do
 		movePackage
 		;;
 	"Sair")
+    tput cnorm # Mostra o cursor novamente
+    stty sane
 		exit 0
 		;;
 	"Resetar commits (clean)")
