@@ -713,13 +713,6 @@ sh_tags() {
 			total=$(echo "$tags" | wc -l)
 			printMessage "$cyan" "Encontradas $total tag(s). Apagando no remote e local..."
 
-			read -p "$(echo -e ${yellow}"Confirma apagar TODAS as $total tags? (s/n): "${rst})" confirm
-			if [[ ! $confirm =~ ^[Ss]$ ]]; then
-				printMessage "$yellow" "Cancelado."
-				inkey
-				break
-			fi
-
 			# apaga no remote em lotes de 50 refspecs por push (evita estouro de ARG_MAX
 			# e evita depender de uma única invocação silenciosa do git push)
 			local remote_fail=0
