@@ -700,8 +700,51 @@ sh_tags() {
 			;;
 		2)
   		sh_get_repo_default
-			git tag -l | sed 's/^/:refs\/tags\//' | xargs git push origin
-			git tag -l | xargs -r git tag -d
+
+			local tags
+			tags="$(git tag -l)"
+			if [ -z "$tags" ]; then
+				printMessage "$yellow" "Nenhuma tag local encontrada."
+				inkey
+				break
+			fi
+
+			local total
+			total=$(echo "$tags" | wc -l)
+			printMessage "$cyan" "Encontradas $total tag(s). Apagando no remote e local..."
+
+			read -p "$(echo -e ${yellow}"Confirma apagar TODAS as $total tags? (s/n): "${rst})" confirm
+			if [[ ! $confirm =~ ^[Ss]$ ]]; then
+				printMessage "$yellow" "Cancelado."
+				inkey
+				break
+			fi
+
+			# apaga no remote em lotes de 50 refspecs por push (evita estouro de ARG_MAX
+			# e evita depender de uma única invocação silenciosa do git push)
+			local remote_fail=0
+			echo "$tags" | sed 's#^#:refs/tags/#' | xargs -n50 -r -- git push origin \
+				|| remote_fail=1
+			if [ $remote_fail -ne 0 ]; then
+				printMessage "$red" "Atenção: git push retornou erro ao apagar uma ou mais tags no remote (veja saída acima)."
+			fi
+
+			# apaga local
+			local local_fail=0
+			echo "$tags" | xargs -r -n1 git tag -d || local_fail=1
+			if [ $local_fail -ne 0 ]; then
+				printMessage "$red" "Atenção: erro ao apagar uma ou mais tags locais."
+			fi
+
+			# confere o que sobrou no remote
+			local remaining
+			remaining="$(git ls-remote --tags origin 2>/dev/null)"
+			if [ -n "$remaining" ]; then
+				printMessage "$yellow" "Ainda restam tags no remote (podem estar protegidas por regra de proteção de tag no GitHub):"
+				echo "$remaining"
+			else
+				printMessage "$green" "Todas as tags foram removidas do remote."
+			fi
 			inkey
 			;;
 		3)
@@ -726,24 +769,42 @@ sh_releases() {
 		case "$ACTION" in
 		1)
   		sh_get_repo_default
-			gh release list
+			gh release list --limit 1000
 			inkey
 			;;
 		2)
   		sh_get_repo_default
+			local prev_count=-1 stuck=0
       while :; do
         tags=$(gh release list --limit 1000 --json tagName --jq '.[].tagName')
         [ -z "$tags" ] && break
 
-        # deletar releases em paralelo (sem conflito de flags)
-        echo "$tags" | xargs -P6 -n1 gh release delete -y
+				local count
+				count=$(echo "$tags" | wc -l)
+				# se a contagem não diminui entre passagens, alguma release não
+				# pode ser apagada (permissão, release protegida etc.) — evita loop infinito
+				if [ "$count" -eq "$prev_count" ]; then
+					((stuck++))
+					if [ "$stuck" -ge 2 ]; then
+						printMessage "$red" "Não foi possível apagar $count release(s) restante(s) (veja mensagens de erro acima)."
+						break
+					fi
+				else
+					stuck=0
+				fi
+				prev_count=$count
 
-        # deletar TODAS as tags remotas em lote (muito mais rápido)
-        echo "$tags" | sed 's/^/:refs\/tags\//' | xargs -n50 git push origin
+        # deletar releases em paralelo (sem conflito de flags)
+        echo "$tags" | xargs -P6 -n1 gh release delete -y --cleanup-tag
+
+        # deletar TODAS as tags remotas em lote (muito mais rápido) — reforço
+        # caso --cleanup-tag não remova a tag (ex: release já não tinha uma)
+        echo "$tags" | sed 's#^#:refs/tags/#' | xargs -n50 -r -- git push origin
 
         # deletar local (rápido mesmo sequencial)
         echo "$tags" | xargs -r -n1 git tag -d 2>/dev/null || true
       done
+			printMessage "$green" "Concluído."
 			inkey
 			;;
 		3)
@@ -772,45 +833,84 @@ sh_workflows() {
 		case "$ACTION" in
 		1)
   		sh_get_repo_default
-			gh run list
+			gh run list --limit 1000
 			inkey
 			;;
 		2)
   		sh_get_repo_default
-			gh run list --status failure
+			gh run list --limit 1000 --status failure
 			inkey
 			;;
 		3)
   		sh_get_repo_default
-			gh run list --status success
+			gh run list --limit 1000 --status success
 			inkey
 			;;
 		4)
   		sh_get_repo_default
-			gh run list \
-				--status failure \
-				--json databaseId \
-				--jq '.[].databaseId' |
-				xargs -n1 -P8 -I{} gh run delete {}
+			# gh run list usa limit padrão de 20 execuções; sem --limit alto e sem
+			# repetir a consulta, sobra run "com falha" no remote mesmo após rodar.
+			local deleted=0 failed=0
+			while :; do
+				runs=$(gh run list --limit 1000 --status failure --json databaseId --jq '.[].databaseId')
+				[ -z "$runs" ] && break
+				while IFS= read -r run_id; do
+					if gh run delete "$run_id" 2>/dev/null; then
+						((deleted++))
+					else
+						((failed++))
+					fi
+				done <<<"$runs"
+			done
+			printMessage "$green" "Apagadas: $deleted"
+			[ "$failed" -gt 0 ] && printMessage "$red" "Falharam: $failed (provavelmente em execução ou sem permissão)"
 			inkey
 			;;
 		5)
   		sh_get_repo_default
-			for run_id in $(gh run list \
-				--status success \
-				--json databaseId \
-				--jq '.[].databaseId'); do
-				gh run delete $run_id
+			local deleted=0 failed=0
+			while :; do
+				runs=$(gh run list --limit 1000 --status success --json databaseId --jq '.[].databaseId')
+				[ -z "$runs" ] && break
+				while IFS= read -r run_id; do
+					if gh run delete "$run_id" 2>/dev/null; then
+						((deleted++))
+					else
+						((failed++))
+					fi
+				done <<<"$runs"
 			done
+			printMessage "$green" "Apagadas: $deleted"
+			[ "$failed" -gt 0 ] && printMessage "$red" "Falharam: $failed (provavelmente em execução ou sem permissão)"
 			inkey
 			;;
 		6)
   		sh_get_repo_default
+			local deleted=0 failed=0 stuck=0 prev_count=-1
 			while :; do
 				runs=$(gh run list --limit 1000 --json databaseId --jq '.[].databaseId')
 				[ -z "$runs" ] && break
-				echo "$runs" | xargs -r -n1 gh run delete
+				local count
+				count=$(echo "$runs" | wc -l)
+				# se a contagem não diminui entre passagens, há runs que não podem
+				# ser apagados (ex: em execução) — evita loop infinito
+				if [ "$count" -eq "$prev_count" ]; then
+					((stuck++))
+					[ "$stuck" -ge 2 ] && break
+				else
+					stuck=0
+				fi
+				prev_count=$count
+				while IFS= read -r run_id; do
+					if gh run delete "$run_id" 2>/dev/null; then
+						((deleted++))
+					else
+						((failed++))
+					fi
+				done <<<"$runs"
 			done
+			printMessage "$green" "Apagadas: $deleted"
+			[ "$failed" -gt 0 ] && printMessage "$red" "Falharam: $failed (provavelmente em execução ou sem permissão)"
 			inkey
 			;;
 		7)
