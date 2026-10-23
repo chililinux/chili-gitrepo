@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: dom 21 jun 2026 00:41:28 -04
+#  Updated: qui 22 out 2026 22:15:57 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,7 +74,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare VERSION="2.06.21-20260621"
+declare VERSION="2.10.22-20261022"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -1016,8 +1016,8 @@ sh_create_databases() {
 			msg_info "${cyan}Pacotes antigos localizados: ${yellow}${#AllOldPackages[@]}${reset}"
 
 			for old in "${AllOldPackages[@]}"; do
-				msg_info "${red}=>Removendo pacote antigo: [$((++count))] => $(basename "${old}") ${reset}"
-				msg_info "${red}=>Removendo pacote antigo: [$((count))] => $(basename "${old}.sig2") ${reset}"
+				msg_info "${yellow}=>Removendo pacote antigo: [$((++count))] => $(basename "${old}") ${reset}"
+				msg_info "${yellow}=>Removendo pacote antigo: [$((count))] => $(basename "${old}.sig2") ${reset}"
 				rm -f "${old}" "${old}".sig2 "${old}".md5 >/dev/null 2>&-
 			done
 
@@ -1040,7 +1040,7 @@ sh_create_databases() {
 		else
 			AllOldPackages=$(find "$PWD" -type f -iname "*.$PKG_EXT" | sort -Vr | awk -F "$FETCH_RE" 'lista[$1]++')
 			for old in "${AllOldPackages[@]}"; do
-				msg_info "${red}=>Removendo pacote antigo: [$((++count))] => $(basename "${old}") ${reset}"
+				msg_info "${yellow}=>Removendo pacote antigo: [$((++count))] => $(basename "${old}") ${reset}"
 				rm -f "${old}" "${old}".sig "${old}".md5 "${old}".sig.md5 >/dev/null 2>&-
 			done
 			rm -f "${db_name}"* >/dev/null 2>&-

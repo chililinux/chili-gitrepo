@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Maintainer: Vilmar Catafesta <vcatafesta@gmail.com>
 
 pkgname=chili-gitrepo
