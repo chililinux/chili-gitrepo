@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: sex 13 nov 2026 09:06:31 -04
+#  Updated: sex 13 nov 2026 10:00:07 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,12 +74,14 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="2.10.26-20261113"
+declare _VERSION_="2.10.27-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
 declare signonly=false
 declare skip_offline=false
+declare do_reindex=true
+declare do_xlocate=true
 declare -a aSkippedOrgs=()
 declare organization='chili'
 declare org_set=false
@@ -949,6 +951,24 @@ sh_report_skipped() {
 	fi
 }
 
+sh_run_xlocate() {
+	# gera o índice xlocate (voidbr-xlocate-index, do voidbr-pkgmake) na
+	# pasta local, depois do repodata e antes do rsync; só no modo void
+	local repo_dir="$1"
+
+	$void || return 0
+	if ! $do_xlocate; then
+		msg_info "${cyan}--no-xlocate: índice xlocate não será gerado ${reset}"
+		return 0
+	fi
+	command -v voidbr-xlocate-index >/dev/null ||
+		die "${red}voidbr-xlocate-index não encontrado (pacote voidbr-pkgmake). Nada foi enviado. Use --no-xlocate para pular${reset}"
+
+	msg_info "${cyan}Gerando índice xlocate em ${orange}'${repo_dir}' ${reset}"
+	voidbr-xlocate-index "$repo_dir" ||
+		die "${red}falha ao gerar o índice xlocate em ${orange}'${repo_dir}'${red}. Nada foi enviado${reset}"
+}
+
 sh_synchronize_remote_with_local() {
 	get_branchs
 	sh_check_remotes 'write'
@@ -960,12 +980,18 @@ sh_synchronize_remote_with_local() {
 		replicate '-'
 	done
 
-	if $void; then
-		search_for_sign_package_void
+	if $do_reindex; then
+		if $void; then
+			search_for_sign_package_void
+		else
+			search_for_sign_package
+		fi
+		sh_create_databases
 	else
-		search_for_sign_package
+		msg_info "${cyan}--no-reindex: database local não será recriado ${reset}"
 	fi
-	sh_create_databases
+	sh_config
+	sh_run_xlocate "$local_PATH"
 
 	for organization in "${aOrganizations[@]}"; do
 		sh_remote_push "$@"
@@ -1012,7 +1038,12 @@ sh_full_synchronize_remote_with_local() {
 		# void-hostinger) recriam/assinam o database local só uma vez
 		local_key="$local_PATH"
 		if [[ -z "${aLocalDone[$local_key]}" ]]; then
-			sh_create_databases
+			if $do_reindex; then
+				sh_create_databases
+			else
+				msg_info "${cyan}--no-reindex: database local não será recriado ${reset}"
+			fi
+			sh_run_xlocate "$local_key"
 			aLocalDone[$local_key]=1
 		else
 			msg_info "${cyan}Database local ${orange}'${local_key}' ${cyan}já recriado nesta execução - pulando ${reset}"
@@ -1255,6 +1286,8 @@ ${cyan}Opções:${reset}
   -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}
   -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
   --skip-offline                 ${cyan} # pula remoto offline/sem acesso (padrão: aborta tudo) ${reset}
+  --reindex|--no-reindex         ${cyan} # recriar/assinar database local antes de enviar (padrão: ligado) ${reset}
+  --xlocate|--no-xlocate         ${cyan} # gerar índice xlocate antes de enviar - só void (padrão: ligado) ${reset}
   -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
   -v|--verbose                   ${cyan} # ativa modo verboso ${reset}
   -V|--version                   ${cyan} # Imprime a versão do aplicativo ${reset}
@@ -1276,6 +1309,7 @@ ${red}ex: ${cyan}${APP} -o chili -s testing         ${rst}
   ${white}${APP} -v -R void                     ${rst}
   ${white}${APP} -v -o void -o void-hostinger -R void ${rst}
   ${white}${APP} -v --skip-offline -o void -o void-hostinger -R void ${rst}
+  ${white}${APP} -v -o void -o void-hostinger -R void --no-xlocate ${rst}
 	EOF
 	exit 0
 }
@@ -1400,6 +1434,16 @@ for arg in "$@"; do
 	--skip-offline)
 		skip_offline=true
 		msg_info "Detectado parâmetro --skip-offline - remotos indisponíveis serão pulados!"
+		;;
+	--reindex) do_reindex=true ;;
+	--no-reindex)
+		do_reindex=false
+		msg_info "Detectado parâmetro --no-reindex - database local não será recriado!"
+		;;
+	--xlocate) do_xlocate=true ;;
+	--no-xlocate)
+		do_xlocate=false
+		msg_info "Detectado parâmetro --no-xlocate - índice xlocate não será gerado!"
 		;;
 	*)
 		aArgs+=("$arg")
