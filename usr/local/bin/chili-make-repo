@@ -74,12 +74,13 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare VERSION="2.10.22-20261022"
+declare VERSION="2.10.23-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
 declare signonly=false
 declare organization='chili'
+declare org_set=false
 declare aOrganizations=()
 aOrganizations+=("biglinux")
 aOrganizations+=("chili")
@@ -88,6 +89,7 @@ aOrganizations+=("community")
 aOrganizations+=("void")
 aOrganizations+=("void-hostinger")
 aOrganizations+=("all")
+declare -a aValidOrgs=("${aOrganizations[@]}")
 declare aAllBranchs=()
 aAllBranchs+=('stable')
 aAllBranchs+=('testing')
@@ -897,7 +899,19 @@ sh_synchronize_remote_with_local() {
 }
 
 sh_full_synchronize_local_with_remote() {
+	local -A aLocalOrg=()
+
 	get_branchs
+
+	# puxar com --delete de dois remotos para a mesma pasta local faria a
+	# pasta ficar igual só ao último remoto; recusa e pede para escolher um
+	for organization in "${aOrganizations[@]}"; do
+		sh_config
+		if [[ -n "${aLocalOrg[$local_PATH]}" ]]; then
+			die "${yellow}'${aLocalOrg[$local_PATH]}' ${red}e ${yellow}'${organization}' ${red}usam o mesmo local ${orange}'${local_PATH}'${red}. Use -L com apenas um -o${reset}"
+		fi
+		aLocalOrg[$local_PATH]="$organization"
+	done
 
   sh_print_summary
 	for organization in "${aOrganizations[@]}"; do
@@ -908,12 +922,23 @@ sh_full_synchronize_local_with_remote() {
 }
 
 sh_full_synchronize_remote_with_local() {
+	local -A aLocalDone=()
+	local local_key
+
 	get_branchs
 
 	for organization in "${aOrganizations[@]}"; do
 		sh_config
     sh_print_summary
-		sh_create_databases
+		# organizações que compartilham o mesmo local_PATH (ex: void e
+		# void-hostinger) recriam/assinam o database local só uma vez
+		local_key="$local_PATH"
+		if [[ -z "${aLocalDone[$local_key]}" ]]; then
+			sh_create_databases
+			aLocalDone[$local_key]=1
+		else
+			msg_info "${cyan}Database local ${orange}'${local_key}' ${cyan}já recriado nesta execução - pulando ${reset}"
+		fi
 		sh_remote_push 'true'
 		replicate '-'
 	done
@@ -1169,6 +1194,7 @@ ${red}ex: ${cyan}${APP} -o chili -s testing         ${rst}
   ${white}${APP} -o void -A all                 ${rst}
   ${white}${APP} -v -L void                     ${rst}
   ${white}${APP} -v -R void                     ${rst}
+  ${white}${APP} -v -o void -o void-hostinger -R void ${rst}
 	EOF
 	exit 0
 }
@@ -1300,18 +1326,25 @@ while [[ $# -gt 0 ]]; do
 
 	-o | --org | --organization)
 		next_arg="${2:-}"
-		if grep -q "$next_arg" <<< "${aOrganizations[*]}"; then
-			organization="$next_arg"
-			aOrganizations=()
-			if [[ "$next_arg" == 'all' ]]; then
-				aOrganizations+=("chili")
-				aOrganizations+=("chililinux")
-			else
-				aOrganizations+=("$next_arg")
+		if [[ -n "$next_arg" && " ${aValidOrgs[*]} " == *" $next_arg "* ]]; then
+			# primeira -o descarta a lista padrão; as seguintes acumulam
+			# ex: -o void -o void-hostinger
+			if ! $org_set; then
+				organization="$next_arg"
+				aOrganizations=()
+				org_set=true
 			fi
+			if [[ "$next_arg" == 'all' ]]; then
+				aNewOrgs=('chili' 'chililinux')
+			else
+				aNewOrgs=("$next_arg")
+			fi
+			for org in "${aNewOrgs[@]}"; do
+				[[ " ${aOrganizations[*]} " == *" $org "* ]] || aOrganizations+=("$org")
+			done
 			shift 2
 		else
-			die "${red} organização invãlida. Válidas: ${yellow}${aOrganizations[*]} ${reset}"
+			die "${red} organização inválida. Válidas: ${yellow}${aValidOrgs[*]} ${reset}"
 		fi
 		;;
 
@@ -1372,8 +1405,10 @@ while [[ $# -gt 0 ]]; do
 			if [[ "$next_arg" == 'void' ]]; then
 				void=true
 				arg_branch="all"
- 				[[ "$organization" == 'chili' ]] && organization='void'
- 				aOrganizations=("$organization")
+				if ! $org_set; then
+					organization='void'
+					aOrganizations=('void')
+				fi
 				sh_full_synchronize_local_with_remote "$arg_branch"
 				exit 0
 			fi
@@ -1403,8 +1438,10 @@ while [[ $# -gt 0 ]]; do
 			if [[ "$next_arg" == 'void' ]]; then
 				void=true
 				arg_branch="all"
- 				[[ "$organization" == 'chili' ]] && organization='void'
-				aOrganizations=("$organization")
+				if ! $org_set; then
+					organization='void'
+					aOrganizations=('void')
+				fi
 				sh_full_synchronize_remote_with_local "$arg_branch"
 				exit 0
 			fi
