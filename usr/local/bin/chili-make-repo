@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: sex 13 nov 2026 10:00:07 -04
+#  Updated: sex 13 nov 2026 10:04:13 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,7 +74,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="2.10.27-20261113"
+declare _VERSION_="2.10.28-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -678,7 +678,8 @@ read_file_sign_conf() {
 		msg_warn "Erro: SECRETKEY ou GPGKEY para ${yellow}'$organization' ${red}não definidas no arquivo de configuração ${orange}${config_file}${reset}"
 		msg_erro_config_file
 		echo
-		touch_config_file
+		# não chama touch_config_file aqui: ele sobrescreveria local_PATH,
+		# remote_* etc. da organização que já existe com valores padrão
 		return 1
 	fi
 
@@ -738,7 +739,7 @@ search_for_sign_package_void() {
 	# Verifica se o diretório existe
 	if [[ ! -d "$local_PATH" ]]; then
 		msg_warn "Diretório não encontrado: $local_PATH"
-		continue
+		return 1
 	fi
 
 	pushd "$local_PATH" >/dev/null || {
@@ -981,11 +982,8 @@ sh_synchronize_remote_with_local() {
 	done
 
 	if $do_reindex; then
-		if $void; then
-			search_for_sign_package_void
-		else
-			search_for_sign_package
-		fi
+		# no void, o sh_create_databases já assina os pacotes sem .sig2
+		$void || search_for_sign_package
 		sh_create_databases
 	else
 		msg_info "${cyan}--no-reindex: database local não será recriado ${reset}"
@@ -1307,6 +1305,8 @@ ${red}ex: ${cyan}${APP} -o chili -s testing         ${rst}
   ${white}${APP} -o void -A all                 ${rst}
   ${white}${APP} -v -L void                     ${rst}
   ${white}${APP} -v -R void                     ${rst}
+  ${white}${APP} -v -o void -o void-hostinger -A void ${rst}
+  ${white}${APP} -v -o void -S void             ${rst}
   ${white}${APP} -v -o void -o void-hostinger -R void ${rst}
   ${white}${APP} -v --skip-offline -o void -o void-hostinger -R void ${rst}
   ${white}${APP} -v -o void -o void-hostinger -R void --no-xlocate ${rst}
@@ -1497,7 +1497,23 @@ while [[ $# -gt 0 ]]; do
 				die "${cyan}Nenhuma organização definida. (Use -h para ajuda)${reset}"
 			fi
 			signonly=true
-			search_for_sign_package
+			if [[ "$next_arg" == 'void' ]] || $void; then
+				# void: assinatura do xbps (.sig2), uma vez por pasta local
+				sh_set_void_mode
+				if ! $org_set; then
+					organization='void'
+					aOrganizations=('void')
+				fi
+				declare -A aSignDone=()
+				for organization in "${aOrganizations[@]}"; do
+					sh_config
+					[[ -n "${aSignDone[$local_PATH]}" ]] && continue
+					aSignDone[$local_PATH]=1
+					search_for_sign_package_void || exit 1
+				done
+			else
+				search_for_sign_package
+			fi
 			exit 0
 		else
 			die "Opção inválida para --sign: $next_arg. Use ${yellow}${aOrganizations[*]}${reset}"
@@ -1511,8 +1527,10 @@ while [[ $# -gt 0 ]]; do
 			if [[ "$next_arg" == 'void' ]]; then
 				sh_set_void_mode
 				arg_branch="all"
-				organization='void'
-				aOrganizations=('void')
+				if ! $org_set; then
+					organization='void'
+					aOrganizations=('void')
+				fi
 				sh_synchronize_remote_with_local "$arg_branch"
 				exit 0
 			fi
