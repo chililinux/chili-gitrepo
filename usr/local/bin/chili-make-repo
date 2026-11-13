@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: sex 13 nov 2026 08:59:36 -04
+#  Updated: sex 13 nov 2026 09:06:31 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,7 +74,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="2.10.25-20261113"
+declare _VERSION_="2.10.26-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -1367,12 +1367,18 @@ if test $# -lt 1; then
 	sh_usage
 fi
 
-distro="$(detect_distro)"
-case "$distro" in
-void)
+sh_set_void_mode() {
+	# modo void: pacotes .xbps (sem isso, find procura *.pkg.tar.zst e
+	# a assinatura/limpeza de pacotes antigos não encontra nada)
 	void=true
 	FETCH_RE='-[^-]+[0-9]+[^.]*.xbps$'
 	PKG_EXT='xbps'
+}
+
+distro="$(detect_distro)"
+case "$distro" in
+void*)
+	sh_set_void_mode
 	;;
 esac
 
@@ -1459,7 +1465,7 @@ while [[ $# -gt 0 ]]; do
 		next_arg="${next_arg,,}"
 		if grep -q "$next_arg" <<< "${aAllBranchs[*]}"; then
 			if [[ "$next_arg" == 'void' ]]; then
-				void=true
+				sh_set_void_mode
 				arg_branch="all"
 				organization='void'
 				aOrganizations=('void')
@@ -1493,7 +1499,7 @@ while [[ $# -gt 0 ]]; do
 
 		if grep -q "$next_arg" <<< "${aAllBranchs[*]}"; then
 			if [[ "$next_arg" == 'void' ]]; then
-				void=true
+				sh_set_void_mode
 				arg_branch="all"
 				if ! $org_set; then
 					organization='void'
@@ -1526,7 +1532,7 @@ while [[ $# -gt 0 ]]; do
     next_arg="${2,,}"
     if grep -q "$next_arg" <<< "${aAllBranchs[*]}"; then
 			if [[ "$next_arg" == 'void' ]]; then
-				void=true
+				sh_set_void_mode
 				arg_branch="all"
 				if ! $org_set; then
 					organization='void'
