@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: qui 22 out 2026 22:15:57 -04
+#  Updated: sex 13 nov 2026 08:44:34 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,11 +74,13 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare VERSION="2.10.23-20261113"
+declare _VERSION_="2.10.24-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
 declare signonly=false
+declare skip_offline=false
+declare -a aSkippedOrgs=()
 declare organization='chili'
 declare org_set=false
 declare aOrganizations=()
@@ -876,8 +878,80 @@ search_for_sign_package() {
 	fi
 }
 
+sh_check_remotes() {
+	# verifica, antes de qualquer trabalho, se cada remoto responde via ssh e
+	# se a pasta remota existe e tem permissão (write para enviar, read para puxar)
+	local mode="${1:-write}"
+	local test_op='-w'
+	local -a aOnline=()
+	local -a aOffline=()
+	local -a aPaths=()
+	local rcmd out rc motivo
+
+	[[ "$mode" == 'read' ]] && test_op='-r'
+	aSkippedOrgs=()
+
+	for organization in "${aOrganizations[@]}"; do
+		sh_config
+		aPaths=()
+		if $void; then
+			aPaths+=("$remote_PATH")
+		else
+			for branch in "${aBranchs[@]}"; do
+				aPaths+=("${remote_PATH}/${branch,,}/x86_64")
+			done
+		fi
+
+		msg_info "${cyan}Verificando remoto: ${orange}${organization} ${cyan}(${remote_USER}@${remote_HOST}:${remote_PORT}) ${reset}"
+		rcmd="for d in $(printf '%q ' "${aPaths[@]}"); do test -d \"\$d\" && test $test_op \"\$d\" || { echo \"\$d\"; exit 1; }; done"
+		out=$(ssh -p "${remote_PORT}" \
+			-i "$HOME/.ssh/id_rsa" \
+			-o IdentitiesOnly=yes \
+			-o BatchMode=yes \
+			-o ConnectTimeout=10 \
+			-o LogLevel=ERROR \
+			"${remote_USER}@${remote_HOST}" "$rcmd" 2>&1)
+		rc=$?
+
+		case $rc in
+		0)
+			msg_ok "${organization}: remoto online e com acesso"
+			aOnline+=("$organization")
+			continue
+			;;
+		1) motivo="pasta remota inexistente ou sem permissão ($( [[ "$mode" == 'read' ]] && echo leitura || echo escrita )): ${out}" ;;
+		255) motivo="sem conexão ou acesso negado via ssh${out:+: ${out}}" ;;
+		*) motivo="falha na verificação (código ${rc})${out:+: ${out}}" ;;
+		esac
+		msg_warn "${organization}: ${motivo}"
+		aOffline+=("$organization")
+	done
+
+	if ((${#aOffline[@]})); then
+		if ! $skip_offline; then
+			die "${red}remoto(s) indisponível(is): ${yellow}${aOffline[*]}${red}. Nada foi alterado. Use --skip-offline para pular${reset}"
+		fi
+		if ((${#aOnline[@]} == 0)); then
+			die "${red}nenhum remoto disponível. Nada foi alterado${reset}"
+		fi
+		aSkippedOrgs=("${aOffline[@]}")
+		aOrganizations=("${aOnline[@]}")
+		msg_warn "--skip-offline: pulando ${aSkippedOrgs[*]}; seguindo com ${aOrganizations[*]}"
+	fi
+	replicate '-'
+}
+
+sh_report_skipped() {
+	# sai com erro se algum remoto foi pulado pelo --skip-offline
+	if ((${#aSkippedOrgs[@]})); then
+		msg_warn "ATENÇÃO: remoto(s) NÃO atualizado(s): ${aSkippedOrgs[*]} - rode de novo quando voltar(em)"
+		exit 1
+	fi
+}
+
 sh_synchronize_remote_with_local() {
 	get_branchs
+	sh_check_remotes 'write'
 
   sh_print_summary
 	for organization in "${aOrganizations[@]}"; do
@@ -896,6 +970,7 @@ sh_synchronize_remote_with_local() {
 	for organization in "${aOrganizations[@]}"; do
 		sh_remote_push "$@"
 	done
+	sh_report_skipped
 }
 
 sh_full_synchronize_local_with_remote() {
@@ -912,6 +987,7 @@ sh_full_synchronize_local_with_remote() {
 		fi
 		aLocalOrg[$local_PATH]="$organization"
 	done
+	sh_check_remotes 'read'
 
   sh_print_summary
 	for organization in "${aOrganizations[@]}"; do
@@ -919,6 +995,7 @@ sh_full_synchronize_local_with_remote() {
 		sh_remote_pull 'true'
 		replicate '-'
 	done
+	sh_report_skipped
 }
 
 sh_full_synchronize_remote_with_local() {
@@ -926,6 +1003,7 @@ sh_full_synchronize_remote_with_local() {
 	local local_key
 
 	get_branchs
+	sh_check_remotes 'write'
 
 	for organization in "${aOrganizations[@]}"; do
 		sh_config
@@ -942,6 +1020,7 @@ sh_full_synchronize_remote_with_local() {
 		sh_remote_push 'true'
 		replicate '-'
 	done
+	sh_report_skipped
 }
 
 sh_print_summary() {
@@ -1145,7 +1224,7 @@ sh_remote_push() {
 
 sh_version() {
 	cat <<-EOF
-		    ${BOLD}${CYAN}${0##*/} v${VERSION}${RESET}
+		    ${BOLD}${CYAN}${0##*/} v${_VERSION_}${RESET}
 		    ${APPDESC}
 		    ${BOLD}${orange}Copyright (c) 2019-2025, ${reset}ChiliLinux Development Team <https://chililinux.com> <https://github.com/chililinux>${reset}
 		    ${BOLD}${orange}Copyright (c) 2019-2025, ${reset}Vilmar Catafesta <vcatafesta@gmail.com>${black}
@@ -1161,7 +1240,7 @@ sh_version() {
 
 sh_usage() {
   cat <<-EOF
-${reset}${APP} v${VERSION} - ${APPDESC}${reset}
+${reset}${APP} v${_VERSION_} - ${APPDESC}${reset}
 ${BOLD}${orange}Copyright (c) 2019-2025, ${reset}ChiliLinux Development Team <https://chililinux.com> <https://github.com/chililinux>${reset}
 ${BOLD}${orange}Copyright (c) 2019-2025, ${reset}Vilmar Catafesta <vcatafesta@gmail.com>${black}
 
@@ -1175,6 +1254,7 @@ ${cyan}Opções:${reset}
   -r|-R|--sync-remote-with-local ${cyan} # sincronizar remote com local (somente empurrar) ${reset}
   -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}
   -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
+  --skip-offline                 ${cyan} # pula remoto offline/sem acesso (padrão: aborta tudo; usar antes de -s/-A/-L/-R) ${reset}
   -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
   -v|--verbose                   ${cyan} # ativa modo verboso ${reset}
   -V|--version                   ${cyan} # Imprime a versão do aplicativo ${reset}
@@ -1195,6 +1275,7 @@ ${red}ex: ${cyan}${APP} -o chili -s testing         ${rst}
   ${white}${APP} -v -L void                     ${rst}
   ${white}${APP} -v -R void                     ${rst}
   ${white}${APP} -v -o void -o void-hostinger -R void ${rst}
+  ${white}${APP} -v --skip-offline -o void -o void-hostinger -R void ${rst}
 	EOF
 	exit 0
 }
@@ -1301,6 +1382,12 @@ while [[ $# -gt 0 ]]; do
 	-v | --verbose)
 		verbose=true
 		msg_info "Detectado parâmetro -v - modo verbose ativado!"
+		shift
+		;;
+
+	--skip-offline)
+		skip_offline=true
+		msg_info "Detectado parâmetro --skip-offline - remotos indisponíveis serão pulados!"
 		shift
 		;;
 
