@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: sex 13 nov 2026 10:04:13 -04
+#  Updated: sex 13 nov 2026 12:29:25 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,7 +74,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="2.10.28-20261113"
+declare _VERSION_="2.10.29-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -174,6 +174,9 @@ get_organization_conf() {
 	SECRETKEY=$(TIni.Get "$config_file" "$organization" 'SECRETKEY')
 	GPGKEY=$(TIni.Get "$config_file" "$organization" 'GPGKEY')
 	PACKAGER=$(TIni.Get "$config_file" "$organization" 'PACKAGER')
+	# chave privada do xbps (void); padrão: private.pem dentro do local_PATH
+	PRIVKEY=$(TIni.Get "$config_file" "$organization" 'PRIVKEY')
+	[[ -z "$PRIVKEY" ]] && PRIVKEY='private.pem'
 
 	if [[ -z "$root_PATH" ]]; then
 		return 1
@@ -696,7 +699,7 @@ read_file_sign_conf() {
 
 sh_sign_package_void() {
 	local pkg_to_sign="$1"
-	msg_run "xbps-rindex -v --privkey private.pem --sign-pkg "${pkg_to_sign}" 1>/dev/null"
+	msg_run "xbps-rindex -v --privkey $(printf '%q' "$PRIVKEY") --sign-pkg $(printf '%q' "$pkg_to_sign") 1>/dev/null"
 }
 
 sign_package() {
@@ -1099,6 +1102,8 @@ sh_remote_pull() {
 		options+=(--update)
 		options+=(--ignore-existing)
 		options+=(--partial)
+		# chaves (*.pem) nunca são baixadas, e o --delete não apaga a local
+		options+=(--exclude='*.pem')
 
 		if $deletar_local; then
 			options+=(--delete)
@@ -1161,7 +1166,7 @@ sh_create_databases() {
 
 			# Once the key is generated, the public part of the private key has to be added to the repository metadata. This step is required only once.
 			msg_info "${cyan}Assinando database ${orange}'x86_repodata' ${cyan}localmente ${reset}"
-			msg_run "xbps-rindex -v --privkey private.pem --sign --signedby $PACKAGER $local_PATH 1>/dev/null"
+			msg_run "xbps-rindex -v --privkey $(printf '%q' "$PRIVKEY") --sign --signedby $PACKAGER $local_PATH 1>/dev/null"
 
 			#msg_info "${cyan}Assinando todos pacotes void ${cyan}localmente ${reset}"
       #rm -f "$local_PATH/"/*.sig2
@@ -1221,6 +1226,9 @@ sh_remote_push() {
 		options+=(--update)
 		options+=(--delete)
 		options+=(--partial)
+		# chaves (*.pem) nunca são enviadas; o filtro "hide" (H) também faz o
+		# --delete apagar do remoto qualquer *.pem que já esteja lá
+		options+=(--filter='H *.pem')
 
 		if $verbose; then
 			echo -n "$black"
