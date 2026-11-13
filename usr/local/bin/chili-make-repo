@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: sex 13 nov 2026 08:44:34 -04
+#  Updated: sex 13 nov 2026 08:59:36 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,7 +74,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="2.10.24-20261113"
+declare _VERSION_="2.10.25-20261113"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -1254,7 +1254,7 @@ ${cyan}Opções:${reset}
   -r|-R|--sync-remote-with-local ${cyan} # sincronizar remote com local (somente empurrar) ${reset}
   -A|--all|--syncall             ${cyan} # sincronizar automaticamente local com remoto (puxar/empurrar) ${reset}
   -S|--sign                      ${cyan} # assinar pacote faltantes ${reset}
-  --skip-offline                 ${cyan} # pula remoto offline/sem acesso (padrão: aborta tudo; usar antes de -s/-A/-L/-R) ${reset}
+  --skip-offline                 ${cyan} # pula remoto offline/sem acesso (padrão: aborta tudo) ${reset}
   -n|--nocolor                   ${cyan} # Suprime a impressão de cores ${reset}
   -v|--verbose                   ${cyan} # ativa modo verboso ${reset}
   -V|--version                   ${cyan} # Imprime a versão do aplicativo ${reset}
@@ -1376,32 +1376,35 @@ void)
 	;;
 esac
 
-while [[ $# -gt 0 ]]; do
-	arg="$1"
+# opções gerais valem em qualquer posição da linha de comando
+# (ex: -A stable --skip-offline); são aplicadas e retiradas antes do
+# loop principal, porque -s/-A/-L/-R/-S executam e saem na hora
+aArgs=()
+for arg in "$@"; do
 	case "$arg" in
 	-v | --verbose)
 		verbose=true
 		msg_info "Detectado parâmetro -v - modo verbose ativado!"
-		shift
 		;;
-
+	-n | --nocolor)
+		nocolor=true
+		unset_varcolors
+		msg_info "Detectado parâmetro -n - desativando saida em cores!"
+		;;
 	--skip-offline)
 		skip_offline=true
 		msg_info "Detectado parâmetro --skip-offline - remotos indisponíveis serão pulados!"
-		shift
 		;;
-
-	-n | --nocolor)
-		nocolor=true
-		if [[ "$nocolor" == "true" ]]; then
-			unset_varcolors
-			msg_info "Detectado parâmetro -n - desativando saida em cores!"
-		else
-			set_varcolors
-		fi
-		shift
+	*)
+		aArgs+=("$arg")
 		;;
+	esac
+done
+set -- "${aArgs[@]}"
 
+while [[ $# -gt 0 ]]; do
+	arg="$1"
+	case "$arg" in
 	-V | --version)
 		sh_version
 		exit 0
