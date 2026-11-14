@@ -4,7 +4,7 @@
 #
 #  chili-make-repo
 #  Created: 2024/08/21 - 19:07
-#  Updated: sex 13 nov 2026 12:29:25 -04
+#  Updated: sáb 14 nov 2026 13:46:41 -04
 #
 #  Copyright (c) 2024-2026, Vilmar Catafesta <vcatafesta@gmail.com>
 #  All rights reserved.
@@ -74,7 +74,7 @@ shopt -s extglob
 
 #system
 declare APP="${0##*/}"
-declare _VERSION_="2.10.29-20261113"
+declare _VERSION_="2.10.30-20261114"
 declare APPDESC="Wrapper para manutenção e gerenciamento de banco de dados de pacotes/repositório like Arch/Void Linux"
 declare nocolor=false
 declare verbose=false
@@ -174,9 +174,6 @@ get_organization_conf() {
 	SECRETKEY=$(TIni.Get "$config_file" "$organization" 'SECRETKEY')
 	GPGKEY=$(TIni.Get "$config_file" "$organization" 'GPGKEY')
 	PACKAGER=$(TIni.Get "$config_file" "$organization" 'PACKAGER')
-	# chave privada do xbps (void); padrão: private.pem dentro do local_PATH
-	PRIVKEY=$(TIni.Get "$config_file" "$organization" 'PRIVKEY')
-	[[ -z "$PRIVKEY" ]] && PRIVKEY='private.pem'
 
 	if [[ -z "$root_PATH" ]]; then
 		return 1
@@ -697,6 +694,49 @@ read_file_sign_conf() {
 	return 0
 }
 
+sh_find_privkey() {
+	# chave privada do xbps (void), nesta ordem:
+	#   1. PRIVKEY do /etc/pkgmake.conf (se o arquivo e a chave existirem)
+	#   2. ~/.ssh/private.pem, ~/.ssh/privkey.pem,
+	#      ~/.gnupg/private.pem, ~/.gnupg/privkey.pem
+	#   3. private.pem dentro do local_PATH (como era antes)
+	# sem chave, para ANTES de mexer em qualquer coisa
+	local conf='/etc/pkgmake.conf'
+	local key
+	local -a aKeys=()
+
+	# já encontrada nesta execução
+	[[ -n "$PRIVKEY" && -r "$PRIVKEY" ]] && return 0
+
+	if [[ -r "$conf" ]]; then
+		key=$(grep -E '^[[:space:]]*PRIVKEY=' "$conf" | tail -n1 | cut -d= -f2-)
+		key="${key%%[[:space:]]#*}"            # comentário no fim da linha
+		key="${key%"${key##*[![:space:]]}"}"  # espaços no fim
+		key="${key#[\"\']}"
+		key="${key%[\"\']}"
+		key="${key//\$\{HOME\}/$HOME}"
+		key="${key//\$HOME/$HOME}"
+		[[ "$key" == '~/'* ]] && key="$HOME/${key#\~/}"
+		[[ -n "$key" ]] && aKeys+=("$key")
+	fi
+	aKeys+=(
+		"$HOME/.ssh/private.pem"
+		"$HOME/.ssh/privkey.pem"
+		"$HOME/.gnupg/private.pem"
+		"$HOME/.gnupg/privkey.pem"
+		"${local_PATH}/private.pem"
+	)
+
+	for key in "${aKeys[@]}"; do
+		if [[ -r "$key" ]]; then
+			PRIVKEY="$key"
+			msg_info "${cyan}Usando chave: ${orange}'${PRIVKEY}' ${reset}"
+			return 0
+		fi
+	done
+	die "${red}chave privada não encontrada (organização ${yellow}'${organization}'${red}). Procurei em: ${orange}${aKeys[*]}${red}. Nada foi alterado${reset}"
+}
+
 sh_sign_package_void() {
 	local pkg_to_sign="$1"
 	msg_run "xbps-rindex -v --privkey $(printf '%q' "$PRIVKEY") --sign-pkg $(printf '%q' "$pkg_to_sign") 1>/dev/null"
@@ -744,6 +784,8 @@ search_for_sign_package_void() {
 		msg_warn "Diretório não encontrado: $local_PATH"
 		return 1
 	fi
+
+	sh_find_privkey
 
 	pushd "$local_PATH" >/dev/null || {
 		msg_warn "Falha ao acessar o diretório: $local_PATH"
@@ -1142,6 +1184,7 @@ sh_create_databases() {
 		fi
 		db_name="${prefix_DB}-${branch,,}"
 
+		$void && sh_find_privkey
 		pushd "$local_PATH" >/dev/null 2>&- || exit 1
 		rm -f -- *.md5 >/dev/null 2>&-
 
@@ -1166,7 +1209,9 @@ sh_create_databases() {
 
 			# Once the key is generated, the public part of the private key has to be added to the repository metadata. This step is required only once.
 			msg_info "${cyan}Assinando database ${orange}'x86_repodata' ${cyan}localmente ${reset}"
-			msg_run "xbps-rindex -v --privkey $(printf '%q' "$PRIVKEY") --sign --signedby $PACKAGER $local_PATH 1>/dev/null"
+			if ! msg_run "xbps-rindex -v --privkey $(printf '%q' "$PRIVKEY") --sign --signedby $PACKAGER $local_PATH 1>/dev/null"; then
+				die "${red}falha ao assinar o índice em ${orange}'${local_PATH}'${red}. Nada foi enviado${reset}"
+			fi
 
 			#msg_info "${cyan}Assinando todos pacotes void ${cyan}localmente ${reset}"
       #rm -f "$local_PATH/"/*.sig2
